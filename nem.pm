@@ -133,7 +133,7 @@ sub read_conf {
                 vars => eval '\&'.$type.'_vars',
                 proc => eval '\&'.$type.'_proc'
             };
-            if ($type =~ /^(if|ifx|apn|cif|csi)$/) {
+            if ($type =~ /^(if|ifx|qfx|apn|cif|csi)$/) {
                 if (/\s+(\d+)$/) {
                     my $inst = $1;
                     $target->{type} = 'port';
@@ -1095,6 +1095,62 @@ sub ifx_proc {
     &ifx_proc_nucast($inst, $res, $prod);
     &ifx_proc_octet($inst, $res, $prod);
 }
+
+################################################################ qfx_*
+################################################################ Juniper QFX
+
+# use the jnxCosQstatTotalDropPkts counter from JUNIPER-COS-MIB:: as the
+# number for ifOutDiscards
+
+my $qfx_entry = '.1.3.6.1.4.1.2636.3.15.4.1';
+my $qfx_outdiscard = "$qfx_entry.53";
+
+sub qfx_vars_diserr {
+    my ($inst) = @_;
+
+    return (
+        "$if_indiscard.$inst",
+        "$qfx_outdiscard.$inst.0",
+        "$if_inerrors.$inst",
+        "$if_outerrors.$inst",
+    );
+}
+
+sub qfx_vars {
+    my ($args) = @_;
+    my ($inst) = @$args;
+
+    return (
+        &ifx_vars_speed($inst),
+        &qfx_vars_diserr($inst),
+        &ifx_vars_ucast($inst),
+        &ifx_vars_nucast($inst),
+        &ifx_vars_octet($inst)
+    );
+}
+
+sub qfx_proc_diserr {
+    my ($inst, $res, $prod) = @_;
+
+    $prod->{in_dis} = $res->{"$if_indiscard.$inst"};
+    $prod->{out_dis} = new Math::BigInt $res->{"$qfx_outdiscard.$inst.0"};
+
+    $prod->{in_err} = $res->{"$if_inerrors.$inst"};
+    $prod->{out_err} = $res->{"$if_outerrors.$inst"};
+}
+
+
+sub qfx_proc {
+    my ($args, $res, $prod) = @_;
+    my ($inst) = @$args;
+
+    &ifx_proc_speed($inst, $res, $prod);
+    &qfx_proc_diserr($inst, $res, $prod);
+    &ifx_proc_ucast($inst, $res, $prod);
+    &ifx_proc_nucast($inst, $res, $prod);
+    &ifx_proc_octet($inst, $res, $prod);
+}
+
 
 ################################################################ apn_*
 ################################################################ Alcatel
